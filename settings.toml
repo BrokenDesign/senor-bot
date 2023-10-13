@@ -1,0 +1,19 @@
+[database]
+url = "sqlite+aiosqlite:///data.db"
+
+[bot]
+prefix = "."
+cogs = ["questions"]
+
+[bot.owner]
+id = 477506746986921992
+
+[bot.intents]
+guilds = true
+messages = true
+message_content = true
+
+[[bot.whitelist]]
+guild = 1161158101676855367
+channel = 1161158101676855370
+log = 1161158101676855370
