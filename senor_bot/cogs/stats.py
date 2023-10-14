@@ -1,44 +1,24 @@
-import polars as pl
-from enum import Enum
-from polars import DataFrame
+# type: ignore
+
 from datetime import datetime, timedelta
+from enum import Enum
+
+from discord.ext.commands import Context, command
+
+from senor_bot import db
 from senor_bot.config import settings
-
-
-class Period(Enum):
-    DAY = 1
-    WEEK = 7
-    MONTH = 30
+from senor_bot.db import Question
 
 
 class Stats:
-    def get_asked_by(self, user: str, period: Period) -> DataFrame:
-        start_date = (datetime.now() - timedelta(days=period.value)).date()
-        query = f"""
-            SELECT * 
-            FROM messages 
-            WHERE user_id = {user} AND timestamp >= '{start_date}'
-        """
-        return pl.read_database(query, settings.database.path)
-
-    def get_asked_to(self, user: str, period: Period) -> DataFrame:
-        start_date = (datetime.now() - timedelta(days=period.value)).date()
-        query = f"""
-            SELECT * 
-            FROM messages 
-            WHERE mentioned_id = {user} AND timestamp >= '{start_date}'
-        """
-        return pl.read_database(query, settings.database.path)
-
-    # def n_message(
-
-
-# Plotting using Plotly
-# fig1 = questions_by_user_df.to_pandas().plot.bar(x='timestamp', y='n_messages', title='Questions by User ID')
-# fig2 = questions_mentioning_user_df.to_pandas().plot.bar(x='timestamp', y='n_messages', title='Questions Mentioning User ID')
-# fig3 = average_messages_per_day_df.to_pandas().plot.bar(x='date', y='average_messages', title='Average Messages per Day')
-
-# # Show the figures
-# fig1.figure.show()
-# fig2.figure.show()
-# fig3.figure.show()
+    @command.slash_command(name="me", description="get user stats")
+    async def get_user_stats(self, ctx: Context) -> list[Question]:
+        if ctx.guild is None:
+            return ctx.respond("Command only available in server")
+        else:
+            author = await db.read_author(
+                guild_id=ctx.guild.id, author_id=ctx.author.id
+            )
+            mentioned = await db.read_author(
+                guild_id=ctx.guild.id, author_id=ctx.author.id
+            )

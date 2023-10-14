@@ -3,6 +3,7 @@
 .secrets.*
 data.db
 trash**
+notes.md
 
 .DS_Store
 .huskyrc.json
