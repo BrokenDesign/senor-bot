@@ -93,6 +93,7 @@ class Questions(commands.Cog):
                 await ctx.add_reaction(self.emotes["check"])
                 question.num_replies += 1
                 question.answer = ctx.content
+                question.has_answer = True
                 await write_question(question)
                 self.open_questions.remove(question)
 
