@@ -56,17 +56,32 @@ class Questions(commands.Cog):
             ctx.mentions is not None and len(ctx.mentions) == 1 and "?" in ctx.content
         )
 
+    async def strip_mentions(self, text: str) -> str:
+        return re.sub(f"<.+>", "", text)
+
+    async def parse_questions(self, text: str) -> list[str]:
+        text = await self.strip_mentions(text)
+        words = "([\w\,\-']+\s?)+"
+        quote = '"[^"]*"\s?'
+        terminators = "[\?\.\:\;\!]"
+        pattern = (
+            f"(?P<text>({words})({quote})?({words})?)+(?P<terminator>{terminators}+|$)"
+        )
+        return [
+            match.group("text").lower().strip() + "?"
+            for match in re.finditer(pattern, text)
+            if match.group("text").strip() != ""
+            and match.group("terminator").strip() == "?"
+        ]
+
     async def add_questions(self, ctx: Context) -> None:
-        text = re.sub(f"<.+>", "", ctx.content)
-        questions = re.findall(r"\s[A-Za-z\,\s]*\?", ctx.content)
+        questions = await self.parse_questions(ctx.content)
         if questions == []:
             return
         else:
             await ctx.add_reaction(self.emotes["point"])
             for question in questions:
-                if question.startswith(","):
-                    question = question[1::]
-                self.open_questions.append(Question(ctx, question.strip()))
+                self.open_questions.append(Question(ctx, question))
 
     async def is_answered(self, ctx: Context, question: Question) -> bool:
         prompt = f"Can '{ctx.content}' be considered an answer to the question '{question.text}'"
