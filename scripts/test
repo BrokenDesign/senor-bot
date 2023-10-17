@@ -1,0 +1,8 @@
+import polars as pl
+
+data = [
+    dict(a=1, b=2),
+    dict(a=10, b=20),
+]
+
+print(repr(pl.DataFrame(data)))

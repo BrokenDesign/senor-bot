@@ -1,14 +1,11 @@
-import datetime
 import random
 
 import polars as pl
 from faker import Faker
-from PIL import Image, ImageDraw, ImageFont
 from polars import DataFrame, col
 
 from senor_bot.db import Question
 
-# Create Faker instance
 fake = Faker()
 
 data = list()
@@ -36,14 +33,10 @@ for _ in range(50):
 
         data.append(question)
 
-        # when(col("author_nick").str.lengths() <= 25)
-        # .then(col("author_nick").str.ljust(25))
-        # .otherwise((col("author_nick").slice(0, 25-3) + "...").str.ljust(25)).alias("member"),
-
 df = DataFrame(data)
 
 
-async def rank_guild_stats(df: DataFrame):
+def rank_guild_stats(df: DataFrame):
     def format_nick(
         nick: str,
     ) -> str:
@@ -71,32 +64,6 @@ async def rank_guild_stats(df: DataFrame):
     )
 
     return df
-
-
-def text_to_image(text, image_size=(580, 240)):
-    margin = 5
-    font_size = 12
-    font_path = "scripts/CascadiaMono.ttf"
-    background_color = "#2a2e36"
-    text_color = "white"
-    text_arr = text.split("\n")
-
-    text_width = len(text_arr[0]) * font_size
-    text_height = len(text_arr) * font_size
-
-    image = Image.new("RGB", image_size, background_color)
-    draw = ImageDraw.Draw(image)
-
-    font = ImageFont.truetype(font_path, font_size)
-    text_width = draw.textlength(text_arr[0], font)
-    text_height = len(text_arr) * font_size
-    text_x = (image_size[0] - text_width) // 2
-    text_y = (image_size[1] - text_height) // 2
-
-    # Draw the text on the image
-    draw.text((5, 0), text, font=font, fill=text_color)
-
-    return image
 
 
 def get_user_stats(df: DataFrame) -> DataFrame:

@@ -23,7 +23,7 @@ class Questions(commands.Cog):
 
     emotes = {
         "point": "\u261D",
-        "question": "\u2753",
+        "question": "\u2754",
         "check": "\u2705",
         "cross": "\u274C",
     }
@@ -57,13 +57,16 @@ class Questions(commands.Cog):
         )
 
     async def add_questions(self, ctx: Context) -> None:
+        text = re.sub(f"<.+>", "", ctx.content)
         questions = re.findall(r"\s[A-Za-z\,\s]*\?", ctx.content)
         if questions == []:
             return
         else:
             await ctx.add_reaction(self.emotes["point"])
-            questions = [Question(ctx, question) for question in questions]
-            self.open_questions.extend(questions)
+            for question in questions:
+                if question.startswith(","):
+                    question = question[1::]
+                self.open_questions.append(Question(ctx, question.strip()))
 
     async def is_answered(self, ctx: Context, question: Question) -> bool:
         prompt = f"Can '{ctx.content}' be considered an answer to the question '{question.text}'"
@@ -83,19 +86,28 @@ class Questions(commands.Cog):
                 continue
             elif not ctx.reference or ctx.reference.message_id != question.message_id:
                 await ctx.add_reaction(self.emotes["question"])
-                question.num_replies += 1
-                continue
-            elif not await self.is_answered(ctx, question):
-                await ctx.add_reaction(self.emotes["cross"])
-                question.num_replies += 1
+                question.replies += 1
                 continue
             else:
-                await ctx.add_reaction(self.emotes["check"])
-                question.num_replies += 1
-                question.answer = ctx.content
-                question.has_answer = True
-                await write_question(question)
-                self.open_questions.remove(question)
+                try:
+                    has_answer = await self.is_answered(ctx, question)
+
+                except Exception as err:
+                    await ctx.send("error: openai error, clearing open questions")
+                    self.open_questions.clear()
+                    print(err)
+
+                if not has_answer:
+                    await ctx.add_reaction(self.emotes["cross"])
+                    question.replies += 1
+                    continue
+                else:
+                    await ctx.add_reaction(self.emotes["check"])
+                    question.replies += 1
+                    question.answer = ctx.content
+                    question.has_answer = True
+                    await write_question(question)
+                    self.open_questions.remove(question)
 
     @commands.slash_command(name="list", description="lists open questions")
     async def send_open_questions(self, ctx):
@@ -118,7 +130,7 @@ class Questions(commands.Cog):
                 author = await self.bot.fetch_user(question.author_id)
                 assert author is not None
                 embed.add_field(
-                    name=f"Question #{i+1} - {author.display_name} asked...",
+                    name=f"Question #{i+1}",
                     value=f"<@!{question.mentions_id}> {question.text}",
                     inline=False,
                 )

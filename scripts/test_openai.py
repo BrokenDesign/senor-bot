@@ -5,8 +5,6 @@ import openai
 from senor_bot.config import settings
 
 openai.api_key = settings.tokens.gpt
-
-question_text = "Is the sky blue?"
 response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
     messages=[

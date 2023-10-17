@@ -14,18 +14,18 @@ from sqlalchemy.orm import declarative_base
 from senor_bot.config import settings
 
 Base = declarative_base()
-engine = create_async_engine(settings.database.url, echo=True, pool_recycle=3600)
+engine = create_async_engine(settings.database.url, echo=False, pool_recycle=3600)
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
 
 class Question(Base):
     __tablename__ = "questions"
+    __allow_unmapped__ = True
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    author_id = Column(Integer)
-    author_nick = Column(String)
-    mentions_id = Column(Integer)
     guild_id = Column(Integer)
+    author_id = Column(Integer)
+    mentions_id = Column(Integer)
     message_id = Column(Integer)
     timestamp = Column(DateTime)
     text = Column(String)
@@ -33,28 +33,45 @@ class Question(Base):
     has_answer = Column(Boolean)
     num_replies = Column(Integer)
 
+    timer_start: datetime
+
     def __init__(self, ctx: Context, question: str):
+        ic(ctx.mentions)
+        ic(len(ctx.mentions))
         assert ctx.mentions is not None and len(ctx.mentions) == 1
         self.author_id = ctx.author.id
-        self.author_nick = ctx.author.nick
         self.mentions_id = ctx.mentions[0].id
-        self.mentions_nick = ctx.mentions[0].nick
         self.message_id = ctx.id
         self.guild_id = ctx.guild.id
         self.timestamp = datetime.now()
         self.text = question
+        self.answer = None
+        self.has_answer = False
         self.num_replies = 0
+        self.timer_start = None
 
     def __repr__(self):
         return pformat(self.to_dict())
+
+    @property
+    def replies(self):
+        pass
+
+    @replies.getter
+    def replies(self) -> int:
+        return self.num_replies
+
+    @replies.setter
+    def replies(self, value: int) -> None:
+        if self.num_replies == 0 and value > 0:
+            self.timer_start = datetime.now()
+        self.num_replies = value
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
             "author_id": self.author_id,
-            "author_nick": self.author_nick,
             "mentions_id": self.mentions_id,
-            "mentions_nick": self.mentions_nick,
             "message_id": self.message_id,
             "timestamp": self.timestamp,
             "text": self.text,

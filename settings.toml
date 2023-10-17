@@ -3,7 +3,8 @@ url = "sqlite+aiosqlite:///data.db"
 
 [bot]
 prefix = "."
-cogs = ["questions"]
+temp_dir = "C:/temp/senor-bot"
+cogs = ["questions", "stats"]
 
 [bot.owner]
 id = 477506746986921992
