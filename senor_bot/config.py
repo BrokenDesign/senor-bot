@@ -1,6 +1,7 @@
 import os
 from pprint import pprint
 
+from box import Box
 from dynaconf import Dynaconf
 from icecream import ic
 
@@ -17,6 +18,9 @@ settings = Dynaconf(
 )
 
 whitelist = [config.guild for config in settings.bot.whitelist]
+
+if "tokens" not in settings:
+    settings.tokens = Box()
 
 if "BOT_TOKEN" in os.environ:
     settings.tokens.bot = os.environ["BOT_TOKEN"]
