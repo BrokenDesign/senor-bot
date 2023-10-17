@@ -14,7 +14,7 @@ bot = commands.Bot(command_prefix=settings.bot.prefix, intents=intents)
 
 if not os.path.exists("data.db"):
     print("Initializing database...")
-    asyncio.run(db.async_main)
+    asyncio.run(db.async_main())
 
 for cog in settings.bot.cogs:
     print(f"Loading {cog} cog...")
