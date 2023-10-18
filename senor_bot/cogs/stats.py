@@ -1,9 +1,8 @@
 # type: ignore
-
 import os
 import tempfile
 from enum import Enum, auto
-from typing import Iterable
+from typing import Iterable, Optional
 
 import discord
 import polars as pl
@@ -40,7 +39,9 @@ class Stats(commands.Cog):
         else:
             return "unknown"
 
-    async def process_guild_stats(self, ctx: Context, df: DataFrame) -> DataFrame:
+    async def process_guild_stats(
+        self, ctx: Context, df: DataFrame, user: Optional[User] = None
+    ) -> DataFrame:
         def format_nick(nick: str) -> str:
             if len(nick) > 25:
                 return nick[0:22] + "..."
@@ -62,6 +63,7 @@ class Stats(commands.Cog):
             .with_columns(col("mentions_id").apply(lambda x: lookup[x]).alias("member"))
             .with_row_count(offset=1)
             .select(
+                col("mentions_id"),
                 col("row_nr").alias("rank"),
                 col("member").apply(format_nick).alias("member"),
                 col("num_questions").alias("num_questions"),
@@ -69,8 +71,12 @@ class Stats(commands.Cog):
                 col("answer_rate").apply(lambda x: f"{x:.1%}").alias("pct_answered"),
             )
         )
+        if user is not None:
+            result = result.filter(col("mentions_id") == user.id)
 
+        result = result.drop("mentions_id")
         ic(result)
+
         return result
 
     async def data_to_text(self, df: DataFrame) -> str:
@@ -123,7 +129,6 @@ class Stats(commands.Cog):
         else:
             df = await db.read_guild(ctx)
             df = await self.process_guild_stats(ctx, df)
-            df = df.drop("mentions_id")
             image = await self.get_stats_image(df, StatsType.MULTIPLE)
             await self.respond_with_image(ctx, image)
 
@@ -137,8 +142,7 @@ class Stats(commands.Cog):
             return
 
         df = await db.read_guild(ctx)
-        df = await self.process_guild_stats(ctx, df)
-        df = df.filter(pl.col("mentions_id") == user.id).drop("mentions_id")
+        df = await self.process_guild_stats(ctx, df, user)
 
         if df.shape[0] == 0:
             await ctx.respond(f"No entry for {user.nick}")

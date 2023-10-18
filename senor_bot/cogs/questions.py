@@ -18,6 +18,7 @@ from senor_bot.db import Question, write_question
 
 class Questions(commands.Cog):
     bot: commands.Bot
+    muted: bool
     open_questions: list[Question]
     whitelist: dict[int, int]
 
@@ -26,11 +27,14 @@ class Questions(commands.Cog):
         "question": "\u2754",
         "check": "\u2705",
         "cross": "\u274C",
+        "zipped": "\U0001F910",
+        "unzipped": "\U0001F62E",
     }
 
     def __init__(self, bot: Bot, **kwargs):
         openai.api_key = settings.tokens.gpt
         self.bot = bot
+        self.muted = False
         self.open_questions = []
         self.whitelist = {
             config.guild: config.channel for config in settings.bot.whitelist
@@ -45,6 +49,16 @@ class Questions(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, ctx: Context):
+        if self.muted:
+            self.open_questions.clear()
+            return
+
+        if "whos your daddy?" in ctx.content.lower().strip().replace("'", ""):
+            await ctx.channel.send(
+                "<@!180505942872424448>'s yo daddy, and don't forget it."
+            )
+            return
+
         if await self.ignore_message(ctx):
             return
         await self.check_open_questions(ctx)
@@ -99,7 +113,12 @@ class Questions(commands.Cog):
                 continue
             elif ctx.author.id != question.mentions_id:
                 continue
-            elif not ctx.reference or ctx.reference.message_id != question.message_id:
+            elif (
+                not ctx.reference
+                or ctx.reference.message_id != question.message_id
+                and ctx.reference.message_id
+                not in [question.message_id for question in self.open_questions]
+            ):
                 await ctx.add_reaction(self.emotes["question"])
                 question.replies += 1
                 continue
@@ -124,8 +143,18 @@ class Questions(commands.Cog):
                     await write_question(question)
                     self.open_questions.remove(question)
 
+    @commands.slash_command(
+        name="mute", description="toggles checking of questions on/off"
+    )
+    async def mute(self, ctx: Context):
+        self.muted = not self.muted
+        if self.muted:
+            await ctx.respond(self.emotes["zipped"])
+        else:
+            await ctx.respond(self.emotes["unzipped"])
+
     @commands.slash_command(name="list", description="lists open questions")
-    async def send_open_questions(self, ctx):
+    async def send_open_questions(self, ctx: Context):
         embed = discord.Embed()
         embed.title = "Open Questions"
         embed.color = 10038562
