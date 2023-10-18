@@ -17,4 +17,7 @@ message_content = true
 [[bot.whitelist]]
 guild = 1161158101676855367
 channel = 1161158101676855370
-log = 1161158101676855370
+
+[[bot.whitelist]]
+guild = 789692030741774368
+channel = 978273836338413648

@@ -4,14 +4,13 @@ import tempfile
 from enum import Enum, auto
 from typing import Iterable, Optional
 
-import discord
 import polars as pl
-from discord import Color, Embed, File, Member, User
+from discord import File, Member, User
 from discord.ext import commands
 from discord.ext.commands import Context
 from icecream import ic
 from PIL import Image, ImageDraw, ImageFont
-from polars import DataFrame, Series, col
+from polars import DataFrame, col
 
 from senor_bot import db
 
@@ -60,7 +59,7 @@ class Stats(commands.Cog):
                 (col("has_answer").sum() / pl.count()).alias("answer_rate"),
             )
             .sort([col("avg_replies"), -col("answer_rate"), -col("num_questions")])
-            .with_columns(col("mentions_id").apply(lambda x: lookup[x]).alias("member"))
+            .with_columns(col("mentions_id").map_dict(lookup).alias("member"))
             .with_row_count(offset=1)
             .select(
                 col("mentions_id"),
@@ -111,11 +110,8 @@ class Stats(commands.Cog):
         )
         out.flush()
         try:
-            # embed = Embed(color=Color.dark_red())
             image.save(out.name, format="PNG")
             file = File(out.name, filename="stats.png")
-            # embed.set_image(url="attachment://stats.png")
-            # await ctx.respond(embed=embed, file=file)
             await ctx.respond(file=file)
         except Exception as err:
             print(err)

@@ -26,7 +26,7 @@ async def on_ready():
     print(f"{bot.user.name} ready and raring to go")
 
 
-@bot.slash_command()
+@bot.slash_command(name="ping", description="checks bot latency")
 async def ping(ctx: commands.Context):
     await ctx.respond(f"Pong! ```latency = {round(bot.latency, 1)}ms```")
 

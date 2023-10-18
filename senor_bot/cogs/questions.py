@@ -180,7 +180,9 @@ class Questions(commands.Cog):
                 )
             await ctx.respond(embed=embed)
 
-    @commands.slash_command(name="remove")
+    @commands.slash_command(
+        name="remove", description="removes question from list of open questions by #"
+    )
     async def remove_open_question(self, ctx: Context, number: int):
         if ctx.author.id != settings.bot.owner.id:
             await ctx.respond("Insufficient permission: Owner required")
@@ -196,17 +198,37 @@ class Questions(commands.Cog):
             question = self.open_questions.pop(number - 1)
             await ctx.respond(f"Removed question:\n```{pformat(question.to_dict())}```")
 
-    # @discord.slash_command(name="close")
-    # async def close_open_question(self, ctx: Context, n: int, answer: str):
-    #     if ctx.author.id != settings.bot.owner.id:
-    #         ctx.send("Insufficient permission: Owner required")
-    #     elif n not in range(len(self.open_questions)):
-    #         ctx.send(
-    #             f"Invalid index: expected value in 0..{len(self.open_questions)-1}."
-    #         )
-    #     else:
-    #         question = self.open_questions.pop(n)
-    #         ctx.send(f"Removed question:\n```{pformat(question.to_dict())}```")
+    @commands.slash_command(
+        name="close", description="closes an open question as answered"
+    )
+    async def close_open_question(self, ctx: Context, n: int, answer: str):
+        if ctx.author.id != settings.bot.owner.id:
+            await ctx.respond("Insufficient permission: Owner required")
+
+        elif len(self.open_questions) == 0:
+            await ctx.respond("Error: No open questions")
+
+        elif number not in range(1, len(self.open_questions) + 1):
+            await ctx.respond(
+                f"Invalid index: expected value in 1..{len(self.open_questions)}."
+            )
+
+        elif answer is None or answer.strip() == "":
+            await ctx.respond(f"Error: must supply answer text")
+
+        else:
+            question = self.open_questions.pop(number - 1)
+            question.has_answer = True
+            question.answer = answer
+            await write_question(question)
+            await ctx.respond(f"Closed question:\n```{pformat(question.to_dict())}```")
+
+    @commands.slash_command(name="clear", description="clears *all* open questions")
+    async def clear_open_questions(self, ctx: Context):
+        if ctx.author.id != settings.bot.owner.id:
+            await ctx.respond("Insufficient permission: Owner required")
+        self.open_questions.clear()
+        await self.send_open_questions(ctx)
 
 
 def setup(bot: commands.Bot):
