@@ -11,6 +11,7 @@ import openai
 from discord import Message
 from discord.ext import commands
 from discord.ext.commands import Bot, Context
+from icecream import ic
 
 from senor_bot.config import settings
 from senor_bot.db import Question, write_question
@@ -41,7 +42,7 @@ class Questions(commands.Cog):
         }
 
     async def ignore_message(self, ctx: Context) -> bool:
-        return (
+        return ic(
             ctx.author.id == self.bot.user.id
             or ctx.guild.id not in self.whitelist
             or ctx.channel.id != self.whitelist[ctx.guild.id]
