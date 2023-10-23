@@ -1,1 +1,0 @@
-worker: python ./senor_bot/bot.py

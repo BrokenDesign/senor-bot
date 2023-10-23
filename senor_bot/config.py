@@ -17,7 +17,7 @@ settings = Dynaconf(
     load_dotenv=True,
 )
 
-whitelist = [config.guild for config in settings.bot.whitelist]
+whitelist = {config.guild: config for config in settings.bot.whitelist}
 
 if "tokens" not in settings:
     settings.tokens = Box()
