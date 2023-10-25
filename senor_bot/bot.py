@@ -5,31 +5,31 @@ import os
 
 from discord import Intents
 from discord.ext import commands
+from discord.ext.commands import Context
+from loguru import logger
 
 from senor_bot import db
 from senor_bot.config import settings
+
+for i in range(5):
+    logger.add(f"logs/file{i}.log", rotation="10 MB")
 
 intents = Intents(**settings.bot.intents)
 bot = commands.Bot(command_prefix=settings.bot.prefix, intents=intents)
 
 if not os.path.exists("data.db"):
-    print("Initializing database...")
+    logger.info("Initializing database...")
     asyncio.run(db.async_main())
 
 for cog in settings.bot.cogs:
-    print(f"Loading {cog} cog...")
+    logger.info(f"Loading {cog} cog...")
     bot.load_extension(f"cogs.{cog}")
 
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user.name} ready and raring to go")
+    logger.info(f"{bot.user.name} ready and raring to go")
 
 
-@bot.slash_command(name="ping", description="checks bot latency")
-async def ping(ctx: commands.Context):
-    await ctx.respond(f"Pong! ```latency = {round(bot.latency, 1)}ms```")
-
-
-print("Logging in...")
+logger.info("Logging in...")
 bot.run(settings.tokens.bot)
