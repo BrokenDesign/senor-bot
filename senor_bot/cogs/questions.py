@@ -2,7 +2,7 @@
 
 import datetime
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pprint import pformat
 
 import discord
@@ -13,8 +13,8 @@ from discord.ext.commands import Bot, Context
 from icecream import ic
 from loguru import logger
 
-from senor_bot.config import settings, whitelist
 from senor_bot.checks import bot_manager
+from senor_bot.config import settings, whitelist
 from senor_bot.db import Question, write_question
 
 
@@ -80,7 +80,7 @@ class Questions(commands.Cog):
                 await self.check_open_questions(ctx)
 
             if await self.has_question(ctx):
-                if ctx.mentions[0].id == ctx.author_id:
+                if ctx.mentions[0].id == ctx.author.id:
                     logger.info("Ignoring question: self")
                     return
                 if ctx.mentions[0].id == self.bot.user.id:
@@ -112,6 +112,7 @@ class Questions(commands.Cog):
 
         for question in expired_questions:
             self.open_questions.remove(question)
+            write_question(question)
             logger.info(f"Removed expired question: {question.text}")
 
     async def has_question(self, ctx: Context) -> bool:
@@ -129,8 +130,8 @@ class Questions(commands.Cog):
 
     async def has_open_question(self, ctx: Context) -> bool:
         try:
-            result = ctx.author_id in [
-                question.author_id for question in self.open_questions
+            result = ctx.author.id in [
+                question.mentions_id for question in self.open_questions
             ]
             logger.info(f"Has open question: {result}")
             return result
@@ -138,32 +139,20 @@ class Questions(commands.Cog):
             logger.error(f"Error occurred in has_open_question: {e}")
             return False
 
-    async def is_possible_answer(self, ctx: Context) -> bool:
+    async def strip_mentions(self, ctx: Context) -> str:
         try:
-            result = ctx.reference.message_id in [
-                question.message_id
-                for question in self.open_questions
-                if question.author_id == ctx.author.id
-            ]
-            logger.info(f"Is possible answer: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"Error occurred in is_possible_answer: {e}")
-            return False
-
-    async def strip_mentions(self, text: str) -> str:
-        try:
-            for mention in ctx.mentions:
-                text = text.replace(mention, "")
+            text = ctx.content
+            for user in ctx.mentions:
+                text = text.replace(user.mention, "")
             logger.debug(f"Stripped mentions from text: {text}")
-            return result
+            return text
         except Exception as e:
             logger.error(f"Error occurred in strip_mentions: {e}")
             return text
 
-    async def parse_questions(self, text: str) -> list[str]:
+    async def parse_questions(self, ctx: Context) -> list[str]:
         try:
-            text = await self.strip_mentions(text)
+            text = await self.strip_mentions(ctx)
             words = "([\w\,\-']+\s?)+"
             quote = '"[^"]*"\s?'
             terminators = "[\?\.\:\;\!]"
@@ -183,11 +172,11 @@ class Questions(commands.Cog):
 
     async def add_questions(self, ctx: Context) -> None:
         try:
-            questions = await self.parse_questions(ctx.content)
+            questions = await self.parse_questions(ctx)
             if questions:
                 await ctx.add_reaction(self.emotes["point"])
-                self.open_questions.extend(questions)
                 for question in questions:
+                    self.open_questions.append(Question(ctx, question))
                     logger.info(f"Added question to open questions: {question}")
             else:
                 logger.info("No valid questions found in the message.")
@@ -209,59 +198,76 @@ class Questions(commands.Cog):
             logger.error(f"Error occurred in is_answered: {e}")
             return False
 
+    async def replies_to_open_question(self, ctx: Context) -> bool:
+        try:
+            if ctx.reference is None:
+                result = False
+            else:
+                result = ctx.reference.message_id in [
+                    question.message_id
+                    for question in self.open_questions
+                    if question.mentions_id == ctx.author.id
+                ]
+            logger.info(f"Replies to open question: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error occurred in replies_to_open_question: {e}")
+            return False
+
+    async def increment_user_questions(self, ctx: Context) -> None:
+        user_questions = [
+            question
+            for question in self.open_questions
+            if question.mentions_id == ctx.author.id
+        ]
+        for question in user_questions:
+            question.replies += 1
+
     async def check_open_questions(self, ctx: Context) -> None:
         try:
-            assert self.has_open_question(ctx)
-            if not ctx.reference or ctx.reference.message_id not in [
-                question.message_id for question in self.open_questions
-            ]:
+            assert await self.has_open_question(ctx)
+            if not await self.replies_to_open_question(ctx):
                 await ctx.add_reaction(self.emotes["question"])
-                question.replies += 1
-                logger.info(
-                    f"Added question reaction for message ID: {question.message_id}"
-                )
-                return
+                await self.increment_user_questions(ctx)
+                logger.info(f"Added question reaction")
             else:
-                relevant_questions = [
-                    question
-                    for question in self.open_questions
-                    if question.author_id == ctx.author.id
-                    and question.message_id == ctx.reference.message_id
-                ]
-                for question in relevant_questions:
+                for question in self.open_questions:
+                    if (
+                        ctx.author.id != question.mentions_id
+                        or ctx.reference.message_id != question.message_id
+                    ):
+                        logger.info(f"Question {question.text} is mentioned: False")
+                        continue
                     try:
                         has_answer = await self.is_answered(ctx, question)
+                        if not has_answer:
+                            await ctx.add_reaction(self.emotes["cross"])
+                            question.replies += 1
+                            logger.info(
+                                f"Added cross reaction for question ID: {question.message_id}"
+                            )
+                        else:
+                            await ctx.add_reaction(self.emotes["check"])
+                            question.replies += 1
+                            question.answer = ctx.content
+                            question.has_answer = True
+                            await write_question(question)
+                            self.open_questions.remove(question)
+                            logger.info(
+                                f"Question ID {question.message_id} successfully closed."
+                            )
 
-                    except Exception as err:
+                    except Exception as e:
                         has_answer = False
                         await ctx.send("error: openai error, clearing open questions")
                         self.open_questions.clear()
-                        logger.error(f"Error occurred in check_open_questions: {err}")
-                        print(err)
+                        logger.error(f"Error occurred in check_open_questions: {e}")
                         return
-
-                    if not has_answer:
-                        await ctx.add_reaction(self.emotes["cross"])
-                        question.replies += 1
-                        logger.info(
-                            f"Added cross reaction for question ID: {question.message_id}"
-                        )
-                        continue
-                    else:
-                        await ctx.add_reaction(self.emotes["check"])
-                        question.replies += 1
-                        question.answer = ctx.content
-                        question.has_answer = True
-                        await write_question(question)
-                        self.open_questions.remove(question)
-                        logger.info(
-                            f"Question ID {question.message_id} successfully closed."
-                        )
 
         except Exception as e:
             logger.error(f"Error occurred in check_open_questions: {e}")
 
-    @check(bot_manager)
+    @commands.check(bot_manager)
     @commands.slash_command(
         name="mute", description="toggles checking of questions on/off"
     )
@@ -301,14 +307,10 @@ class Questions(commands.Cog):
                 )
             await ctx.respond(embed=embed)
 
-    @check(bot_manager)
+    @commands.check(bot_manager)
     @commands.slash_command(
         name="remove", description="removes question from list of open questions by #"
     )
-    import logging
-
-    logger = logging.getLogger(__name__)
-
     async def remove_open_question(self, ctx: Context, number: int):
         if len(self.open_questions) == 0:
             await ctx.respond("Error: No open questions")
@@ -318,20 +320,26 @@ class Questions(commands.Cog):
             await ctx.respond(
                 f"Invalid index: expected value in 1..{len(self.open_questions)}."
             )
-            logger.warning(f"Invalid index {number} provided while trying to remove a question")
+            logger.warning(
+                f"Invalid index {number} provided while trying to remove a question"
+            )
 
         else:
             question = self.open_questions.pop(number - 1)
             embed = discord.Embed()
             embed.title = "Removed question"
             embed.color = discord.Color.dark_red()
-            embed.add_field(name="Asker", value=f"<@!{question.author_id}>", inline=False)
-            embed.add_field(name="Mentions", value=f"<@!{question.mentions_id}>", inline=False)
+            embed.add_field(
+                name="Asker", value=f"<@!{question.author_id}>", inline=False
+            )
+            embed.add_field(
+                name="Mentions", value=f"<@!{question.mentions_id}>", inline=False
+            )
             embed.add_field(name="Question", value=question.text, inline=False)
             await ctx.respond(embed=embed)
             logger.info(f"Question {number} removed successfully")
 
-    @check(bot_manager)
+    @commands.check(bot_manager)
     @commands.slash_command(
         name="close", description="closes an open question as answered"
     )
@@ -357,7 +365,7 @@ class Questions(commands.Cog):
             await write_question(question)
             await ctx.respond(f"Closed question:\n```{pformat(question.to_dict())}```")
 
-    @check(bot_manager)
+    @commands.check(bot_manager)
     @commands.slash_command(name="clear", description="clears *all* open questions")
     async def clear_open_questions(self, ctx: Context):
         if ctx.author.id != settings.bot.owner.id:

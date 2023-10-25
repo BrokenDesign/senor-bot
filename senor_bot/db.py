@@ -36,8 +36,6 @@ class Question(Base):
     timer_start: datetime
 
     def __init__(self, ctx: Context, question: str):
-        ic(ctx.mentions)
-        ic(len(ctx.mentions))
         assert ctx.mentions is not None and len(ctx.mentions) == 1
         self.author_id = ctx.author.id
         self.mentions_id = ctx.mentions[0].id
