@@ -80,10 +80,14 @@ class Question(Base):
 
 
 async def write_question(question: Question) -> None:
-    async with async_session() as session:
-        async with session.begin():
-            session.add(question)
-            await session.commit()
+    try:
+        async with async_session() as session:
+            async with session.begin():
+                session.add(question)
+                await session.commit()
+        logging.info(f"Question written to database: {question}"")
+    except Exception as e:
+        logger.error(f"Error writing question to database: {e}")
 
 
 async def read_guild(ctx: Context) -> DataFrame:

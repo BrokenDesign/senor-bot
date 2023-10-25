@@ -196,7 +196,7 @@ class Questions(commands.Cog):
             return answer
         except Exception as e:
             logger.error(f"Error occurred in is_answered: {e}")
-            return False
+            raise e
 
     async def replies_to_open_question(self, ctx: Context) -> bool:
         try:
